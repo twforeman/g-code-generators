@@ -125,12 +125,25 @@ sub generateCircle {
 	# do some cutter step over math here
 	my $stepOver = $InputPrefs{'pass_overlap'} / $InputPrefs{'end_mill_dia'};
 	my $holeRadius = $InputPrefs{'hole_dia'} / 2;
+	mY $cutterRadius = $InputPrefs{'end_mill_dia'} /2;
 
 	my $currentZ = $InputPrefs{'z_origin'};
 	my $finalZ = $currentZ - $InputPrefs{'hole_depth'}';
 
 	while ($currentZ >= $finalZ) {
 		print $File "G01 F" . $InputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
+
+		if (( $holeRadius - $cutterRadius ) <= $stepOver)) {
+			# single pass will clean it up
+			## TODO add finish path logic
+			# move to the start point of the hole
+			print $FILE "G01 F" . $InputPrefs{'feed_rate'} . " X" . $xOrigin - ($holeRadius - $cutterRadius) ' "\n";
+			if ( $InputPrefs{'mill_dir'} eq 'ccw' ) {
+				print $FILE "G03 ";
+			} else {
+				print $FILE "G02 ";
+			}
+	}
 		
 }
 
