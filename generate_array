@@ -4,8 +4,8 @@ use strict;
 
 my $configFile = "generate_array.conf";
 
-my %UserPrefs;
-my %InputValues;
+my %userPrefs;
+my %inputValues;
 
 sub readConfig() {
 
@@ -20,90 +20,91 @@ sub readConfig() {
     		s/\s+$//;               # no trailing white
     		next unless length;     # anything left?
     		my ($var, $value) = split(/\s*=\s*/, $_, 2);
-    		$UserPrefs{$var} = $value;
+    		$userPrefs{$var} = $value;
 	}
 }
 
 sub getUserInput() {
 
-	$InputValues{'units'} = "";
+	$inputValues{'units'} = "";
 
-	while (($InputValues{'units'} ne "i") && ($InputValues{'units'} ne "m")) {
-		$InputValues{'units'} = lc(promptUser("Units - (i)nches (m)illimeters ",($UserPrefs{'units'} eq 'inches' ? "i" : "m")));
+	while (($inputValues{'units'} ne "i") && ($inputValues{'units'} ne "m")) {
+		$inputValues{'units'} = lc(promptUser("Units - (i)nches (m)illimeters ",($userPrefs{'units'} eq 'inches' ? "i" : "m")));
 	}
 
-	$InputValues{'end_mill_dia'} = promptUser("End mill diameter ",$UserPrefs{'end_mill_dia'});
-	$InputValues{'mill_dir'} = promptUser("Circle direction (ccw/cw) ",$UserPrefs{'mill_dir'});
-	$InputValues{'pass_overlap'} = promptUser("Step over percentage ",$UserPrefs{'pass_overlap'});
-	$InputValues{'safety_plane'} = promptUser("Safety plane height ",$UserPrefs{'safety_plane'});
-	$InputValues{'hole_dia'} = promptUser("Hole diameter ",$UserPrefs{'hole_diameter'});
-	$InputValues{'hole_depth'} = promptUser("Hole depth ",$UserPrefs{'hole_depth'});
-	$InputValues{'plunge_depth'} = promptUser("Plunge depth ",$UserPrefs{'plunge_depth'});
-	$InputValues{'x_origin'} = promptUser("X origin ", $UserPrefs{'x_origin'});
-	$InputValues{'y_origin'} = promptUser("Y origin ", $UserPrefs{'y_origin'});
-	$InputValues{'z_origin'} = promptUser("Z origin ", $UserPrefs{'z_origin'});
-	$InputValues{'x_count'} = promptUser("Number of columns (X axis) ", $UserPrefs{'x_count'});
-	$InputValues{'y_count'} = promptUser("Number of rows (Y axis) ", $UserPrefs{'y_count'});
-	$InputValues{'x_spacing'} = promptUser("X spacing ", $UserPrefs{'x_spacing'});
-	$InputValues{'y_spacing'} = promptUser("Y spacing ", $UserPrefs{'y_spacing'});
-	$InputValues{'filename'} = promptUser("Output file name (leave blank for stdout)");
+	$inputValues{'end_mill_dia'} = promptUser("End mill diameter ",$userPrefs{'end_mill_dia'});
+	$inputValues{'mill_dir'} = promptUser("Circle direction (ccw/cw) ",$userPrefs{'mill_dir'});
+	$inputValues{'pass_overlap'} = promptUser("Step over percentage ",$userPrefs{'pass_overlap'});
+	$inputValues{'safety_plane'} = promptUser("Safety plane height ",$userPrefs{'safety_plane'});
+	$inputValues{'hole_dia'} = promptUser("Hole diameter ",$userPrefs{'hole_diameter'});
+	$inputValues{'hole_depth'} = promptUser("Hole depth ",$userPrefs{'hole_depth'});
+	$inputValues{'plunge_depth'} = promptUser("Plunge depth ",$userPrefs{'plunge_depth'});
+	$inputValues{'x_origin'} = promptUser("X origin ", $userPrefs{'x_origin'});
+	$inputValues{'y_origin'} = promptUser("Y origin ", $userPrefs{'y_origin'});
+	$inputValues{'z_origin'} = promptUser("Z origin ", $userPrefs{'z_origin'});
+	$inputValues{'x_count'} = promptUser("Number of columns (X axis) ", $userPrefs{'x_count'});
+	$inputValues{'y_count'} = promptUser("Number of rows (Y axis) ", $userPrefs{'y_count'});
+	$inputValues{'x_spacing'} = promptUser("X spacing ", $userPrefs{'x_spacing'});
+	$inputValues{'y_spacing'} = promptUser("Y spacing ", $userPrefs{'y_spacing'});
+	$inputValues{'comments'} = promptUser("Comments ");
+	$inputValues{'filename'} = promptUser("Output file name (leave blank for stdout)");
 }
 
 sub sanityCheck() {
 
 	## Lets make sure some of these values make sense
-	($InputValues{'hole_dia'} <= $InputValues{'end_mill_dia'}) && die "Your specified end mill is larger than the hole diameter\n";
+	($inputValues{'hole_dia'} <= $inputValues{'end_mill_dia'}) && die "Your specified end mill is larger than the hole diameter\n";
 
-	if ($InputValues{'filename'} ne "" ) {
+	if ($inputValues{'filename'} ne "" ) {
 		my $overwrite = "n";
-		while((-f $InputValues{'filename'}) && ($overwrite eq 'n')) {
-			$overwrite = lc(promptUser("Output file $InputValues{'filename'} already exists, would you like to overwrite it? ","N"));
+		while((-f $inputValues{'filename'}) && ($overwrite eq 'n')) {
+			$overwrite = lc(promptUser("Output file $inputValues{'filename'} already exists, would you like to overwrite it? ","N"));
 			if ($overwrite eq 'n') {
-				$InputValues{'filename'} = promptUser("Please enter a new output file name ");
+				$inputValues{'filename'} = promptUser("Please enter a new output file name ");
 			}
 		}
 
-		open TEST, $InputValues{'filename'} || die "Unable to open output file: $InputValues{'filename'}, $?\n";
+		open TEST, $inputValues{'filename'} || die "Unable to open output file: $inputValues{'filename'}, $?\n";
 		close TEST;
 	}
 }
 
 sub calculateGcode() {
 
-	if ($InputValues{'filename'} ne "") {
-		open (OUTFILE,">$InputValues{'filename'}") || die "Unable to open output file: $InputValues{'filename'}, $?\n";
+	if ($inputValues{'filename'} ne "") {
+		open (OUTFILE,">$inputValues{'filename'}") || die "Unable to open output file: $inputValues{'filename'}, $?\n";
 	} else {
 		open (OUTFILE,"><stdout>");
 	}
 
-	my $currentX = $InputValues{'x_origin'};
-	my $currentY = $InputValues{'y_origin'};
-	my $currentZ = $InputValues{'z_origin'};
+	my $currentX = $inputValues{'x_origin'};
+	my $currentY = $inputValues{'y_origin'};
+	my $currentZ = $inputValues{'z_origin'};
 
 	# output some header stuff
 	print OUTFILE "(Created with generate_array)\n";
-	if ($InputValues{'units'} eq 'i') {
+	if ($inputValues{'units'} eq 'i') {
 		print OUTFILE "G20 ";
 	} else {
 		print OUTFILE "G21 ";
 	}
 	print OUTFILE "G90 G40\n";
-	print OUTFILE "G00 Z" . $InputValues{'safety_plane'} . "\n";
+	print OUTFILE "G00 Z" . $inputValues{'safety_plane'} . "\n";
 	
 	my $column = 1;
 	my $row = 1;
 
-	while ($row <= $InputValues{'y_count'}) {
-		while ($column <= $InputValues{'x_count'}){
+	while ($row <= $inputValues{'y_count'}) {
+		while ($column <= $inputValues{'x_count'}){
 			print OUTFILE "G00 X" . $currentX . " Y" . $currentY . "\n";
 			generateCircle($currentX, $currentY, \*OUTFILE);
-			$currentX = $currentX + $InputValues{'x_spacing'};
+			$currentX = $currentX + $inputValues{'x_spacing'};
 			$column++;
 		}
-		$currentY = $currentY + $InputValues{'y_spacing'};
+		$currentY = $currentY + $inputValues{'y_spacing'};
 		$row++;
 		$column = 1;
-		$currentX = $InputValues{'x_origin'};
+		$currentX = $inputValues{'x_origin'};
 	}
 
 	close OUTFILE;
@@ -123,22 +124,25 @@ sub generateCircle {
 	print $FILE "(begining hole boring)\n";
 
 	# do some cutter step over math here
-	my $stepOver = $InputPrefs{'pass_overlap'} / $InputPrefs{'end_mill_dia'};
-	my $holeRadius = $InputPrefs{'hole_dia'} / 2;
-	mY $cutterRadius = $InputPrefs{'end_mill_dia'} /2;
+	my $stepOver = $inputValues{'pass_overlap'} / $inputValues{'end_mill_dia'};
+	my $holeRadius = $inputValues{'hole_dia'} / 2;
+	mY $cutterRadius = $inputValues{'end_mill_dia'} /2;
 
-	my $currentZ = $InputPrefs{'z_origin'};
-	my $finalZ = $currentZ - $InputPrefs{'hole_depth'}';
+	my $currentZ = $inputValues{'z_origin'};
+	my $finalZ = $currentZ - $inputValues{'hole_depth'}';
+
+	## It is recommended to generate circles using multiple arcs
+	## so we will do four 90 degree arcs
 
 	while ($currentZ >= $finalZ) {
-		print $File "G01 F" . $InputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
+		print $File "G01 F" . $inputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
 
 		if (( $holeRadius - $cutterRadius ) <= $stepOver)) {
 			# single pass will clean it up
 			## TODO add finish path logic
 			# move to the start point of the hole
-			print $FILE "G01 F" . $InputPrefs{'feed_rate'} . " X" . $xOrigin - ($holeRadius - $cutterRadius) ' "\n";
-			if ( $InputPrefs{'mill_dir'} eq 'ccw' ) {
+			print $FILE "G01 F" . $inputValues{'feed_rate'} . " X" . $xOrigin - ($holeRadius - $cutterRadius) ' "\n";
+			if ( $inputValues{'mill_dir'} eq 'ccw' ) {
 				print $FILE "G03 ";
 			} else {
 				print $FILE "G02 ";
