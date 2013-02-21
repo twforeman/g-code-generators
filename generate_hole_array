@@ -1,0 +1,287 @@
+#!/usr/bin/perl -w
+
+########################################
+##
+## generate_hole_array
+##
+## part of the g-code-generator scripts
+##
+## generates an array of bored holes (or a single hole)
+##
+## version 0.1.0
+##
+## Tim Foreman - twforeman@gmail.com
+##
+## most recent version is always available at:
+## https://github.com/twforeman/g-code-generators
+##
+########################################
+
+use strict;
+use POSIX "fmod";
+
+my $configFile = "generate_hole_array.conf";
+
+my %userPrefs;
+my %inputValues;
+
+sub readConfig() {
+
+	(-f $configFile ) || die "Config file: $configFile not found.\n";
+
+	open CONFIG, $configFile;
+
+	while (<CONFIG>) {
+	    	chomp;                  # no newline
+    		s/#.*//;                # no comments
+    		s/^\s+//;               # no leading white
+    		s/\s+$//;               # no trailing white
+    		next unless length;     # anything left?
+    		my ($var, $value) = split(/\s*=\s*/, $_, 2);
+    		$userPrefs{$var} = $value;
+	}
+}
+
+sub getUserInput() {
+
+	$inputValues{'units'} = "";
+
+	while (($inputValues{'units'} ne "i") && ($inputValues{'units'} ne "m")) {
+		$inputValues{'units'} = lc(promptUser("Units - (i)nches (m)illimeters ",($userPrefs{'units'} eq 'inches' ? "i" : "m")));
+	}
+
+	$inputValues{'end_mill_dia'} = promptUser("End mill diameter ",$userPrefs{'end_mill_dia'});
+	$inputValues{'mill_dir'} = promptUser("Circle direction (ccw/cw) ",$userPrefs{'mill_dir'});
+	$inputValues{'pass_overlap'} = promptUser("Step over percentage ",$userPrefs{'pass_overlap'});
+	$inputValues{'safety_plane'} = promptUser("Safety plane height ",$userPrefs{'safety_plane'});
+	$inputValues{'feed_rate'} = promptUser("Feed rate ",$userPrefs{'feed_rate'});
+	print "\n";
+	$inputValues{'hole_dia'} = promptUser("Hole diameter ",$userPrefs{'hole_diameter'});
+	$inputValues{'hole_depth'} = promptUser("Hole depth ",$userPrefs{'hole_depth'});
+	$inputValues{'plunge_depth'} = promptUser("Plunge depth ",$userPrefs{'plunge_depth'});
+	$inputValues{'plunge_rate'} = promptUser("Plunge rate ",$userPrefs{'plunge_rate'});
+	print "\n";
+	$inputValues{'x_origin'} = promptUser("X origin ", $userPrefs{'x_origin'});
+	$inputValues{'y_origin'} = promptUser("Y origin ", $userPrefs{'y_origin'});
+	$inputValues{'z_origin'} = promptUser("Z origin ", $userPrefs{'z_origin'});
+	$inputValues{'x_count'} = promptUser("Number of columns (X axis) ", $userPrefs{'x_count'});
+	$inputValues{'y_count'} = promptUser("Number of rows (Y axis) ", $userPrefs{'y_count'});
+	if ( $inputValues{'x_count'} > 1 ) {
+		$inputValues{'x_spacing'} = promptUser("X spacing ", $userPrefs{'x_spacing'});
+	} else {
+		$inputValues{'x_spacing'} = 1;
+	}
+	if ( $inputValues{'y_count'} > 1 ) {
+		$inputValues{'y_spacing'} = promptUser("Y spacing ", $userPrefs{'y_spacing'});
+	} else {
+		$inputValues{'y_spacing'} = 1;
+	}
+	print "\n";
+	$inputValues{'comment'} = promptUser("Comment ");
+	$inputValues{'filename'} = promptUser("Output file name (leave blank for stdout)");
+}
+
+sub sanityCheck() {
+
+	## Lets make sure some of these values make sense
+	($inputValues{'hole_dia'} <= $inputValues{'end_mill_dia'}) && die "Your specified end mill is larger than the hole diameter\n";
+
+	if ($inputValues{'filename'} ne "" ) {
+		my $overwrite = "n";
+		while((-f $inputValues{'filename'}) && ($overwrite eq 'n')) {
+			$overwrite = lc(promptUser("Output file $inputValues{'filename'} already exists, would you like to overwrite it? ","N"));
+			if ($overwrite eq 'n') {
+				$inputValues{'filename'} = promptUser("Please enter a new output file name ");
+			}
+		}
+
+		open TEST, $inputValues{'filename'} || die "Unable to open output file: $inputValues{'filename'}, $?\n";
+		close TEST;
+	}
+	### TODO - add more tests
+}
+
+sub calculateGcode() {
+
+	if ($inputValues{'filename'} ne "") {
+		open (OUTFILE,">$inputValues{'filename'}") || die "Unable to open output file: $inputValues{'filename'}, $?\n";
+	} else {
+		open (OUTFILE,"><stdout>");
+	}
+
+	my $currentX = $inputValues{'x_origin'};
+	my $currentY = $inputValues{'y_origin'};
+	my $currentZ = $inputValues{'z_origin'};
+
+	# output some header stuff
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime(time);
+
+	print OUTFILE "%\n";
+
+	printf OUTFILE "( Created with generate_array - %4d-%02d-%02d %02d:%02d:%02d )\n",$year+1900,$mon+1,$mday,$hour,$min,$sec;
+
+	defined( $inputValues{'comment'} ) && print OUTFILE "( $inputValues{'comment'} )\n";
+
+	printf OUTFILE "( Bores %.4f dia holes with %.4f dia end mill )\n", $inputValues{'hole_dia'}, $inputValues{'end_mill_dia'};
+
+	if ($inputValues{'units'} eq 'i') {
+
+		print OUTFILE "G20 ";
+
+	} else {
+
+		print OUTFILE "G21 ";
+
+	}
+
+	print OUTFILE "G90 G40 G17\n";
+
+	print OUTFILE "G00 Z" . $inputValues{'safety_plane'} . "\n";
+	
+	my $column = 1;
+	my $row = 1;
+	my $direction = 1;
+
+	while ($column <= $inputValues{'x_count'}) {
+		while ($row <= $inputValues{'y_count'}){
+			print OUTFILE "G00 X" . $currentX . " Y" . $currentY . "\n";
+			generateHole($currentX, $currentY, \*OUTFILE);
+			if ( $direction == 1 ) {
+				$currentY = $currentY + $inputValues{'y_spacing'};
+			} else {
+				$currentY = $currentY - $inputValues{'y_spacing'};
+			}
+			$row++;
+		}
+		$currentX = $currentX + $inputValues{'x_spacing'};
+		$column++;
+		$row = 1;
+		if ( $direction == 1 ) {
+			$currentY = $currentY - $inputValues{'y_spacing'};
+			$direction = 0;
+		} else {
+			$currentY = $inputValues{'y_origin'};
+			$direction = 1;
+		}
+	}
+
+	close OUTFILE;
+}
+
+sub promptUser {
+
+	  my($prompt, $default) = @_;
+	  my $defaultValue = defined($default) ? "[$default]" : "";
+	  print "$prompt $defaultValue: ";
+	  chomp(my $input = <STDIN>);
+	  return $input ? $input : $default;
+}
+
+sub generateHole {
+	my ($xOrigin, $yOrigin, $FILE) = @_;
+	print $FILE "(begining hole boring)\n";
+
+	# do some cutter step over math here
+	my $stepOver = $inputValues{'pass_overlap'} / $inputValues{'end_mill_dia'};
+	my $holeRadius = $inputValues{'hole_dia'} / 2;
+	my $cutterRadius = $inputValues{'end_mill_dia'} / 2;
+
+	## TODO add finish path here
+
+	my $cutterPathRadius = $holeRadius - $cutterRadius;
+
+	my $currentZ = $inputValues{'z_origin'};
+	my $finalZ = $currentZ - $inputValues{'hole_depth'};
+
+	my $finalPlunge = fmod( $inputValues{'hole_depth'}, $inputValues{'plunge_depth'} );
+	my $numPlunge = int( $inputValues{'hole_depth'} / $inputValues{'plunge_depth'} );
+
+	my $plungeCount = 1;
+
+
+	if (( $holeRadius - $cutterRadius ) <= $stepOver ) {
+		# single pass will clean it up
+
+		## TODO add finish path logic
+
+		while ( $plungeCount <= $numPlunge ) {
+
+			$currentZ = $inputValues{'z_origin'} - ( $inputValues{'plunge_depth'} * $plungeCount );
+
+			# plunge 
+			print $FILE "G01 F" . $inputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
+
+			print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
+		
+			# move back to the center of the hole
+			printf $FILE "G01 X%.4f Y%.4f\n", $xOrigin, $yOrigin;
+
+			$plungeCount++;
+		}
+
+		if ( $finalPlunge > 0 ) {
+
+			# make one more pass to the final depth
+
+			$currentZ = $inputValues{'z_origin'} - $inputValues{'hole_depth'};
+
+			# plunge 
+			print $FILE "G01 F" . $inputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
+
+			print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
+		
+			# move back to the center of the hole
+			printf $FILE "G01 X%.4f Y%.4f\n", $xOrigin, $yOrigin;
+
+		}
+	
+
+	} else {
+
+		# need to do multiple passes for stepover
+
+		## TODO add finish path logic
+
+	}
+
+	# rapid back to the safety plane
+
+	printf $FILE "G00 Z%.4f\n", $inputValues{'safety_plane'};
+		
+}
+
+sub generateCircle {
+
+	## It is recommended to generate circles using multiple arcs
+	## so we will do four 90 degree arcs
+
+	my ( $xOrigin, $yOrigin, $radius, $direction, $FILE ) = @_;
+
+	my $gcode = "";
+
+	# move to the start point of the hole
+	$gcode = $gcode . sprintf "G01 F%.2f X%.4f\n", $inputValues{'feed_rate'}, ( $xOrigin + $radius );
+
+	if ( $direction eq 'ccw' ) {
+		 $gcode = $gcode . sprintf "G03 X%.4f Y%.4f I%.4f J%.4f\n", $xOrigin, ( $yOrigin + $radius ), (-$radius), 0;
+		 $gcode = $gcode . sprintf "G03 X%.4f Y%.4f I%.4f J%.4f\n", ( $xOrigin - $radius ), $yOrigin, 0, (-$radius);
+		 $gcode = $gcode . sprintf "G03 X%.4f Y%.4f I%.4f J%.4f\n", $xOrigin, ( $yOrigin - $radius ), $radius, 0;
+		 $gcode = $gcode . sprintf "G03 X%.4f Y%.4f I%.4f J%.4f\n", ( $xOrigin + $radius ), $yOrigin, 0, $radius;
+	} else {
+		 $gcode = $gcode . sprintf "G02 X%.4f Y%.4f I%.4f J%.4f\n", $xOrigin, ( $yOrigin - $radius ), (-$radius), 0;
+		 $gcode = $gcode . sprintf "G02 X%.4f Y%.4f I%.4f J%.4f\n", ( $xOrigin - $radius ), $yOrigin, 0, $radius;
+		 $gcode = $gcode . sprintf "G02 X%.4f Y%.4f I%.4f J%.4f\n", $xOrigin, ( $yOrigin + $radius ), $radius, 0;
+		 $gcode = $gcode . sprintf "G02 X%.4f Y%.4f I%.4f J%.4f\n", ( $xOrigin + $radius ), $yOrigin, 0, (-$radius);
+	}
+	
+	return $gcode;
+
+}
+
+readConfig();
+getUserInput();
+sanityCheck();
+calculateGcode();
+
+## TODO
+## more input validation
