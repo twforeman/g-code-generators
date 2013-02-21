@@ -114,7 +114,7 @@ sub calculateGcode() {
 	if ($inputValues{'filename'} ne "") {
 		open (OUTFILE,">$inputValues{'filename'}") || die "Unable to open output file: $inputValues{'filename'}, $?\n";
 	} else {
-		open (OUTFILE,"><stdout>");
+		open (OUTFILE,">-");
 	}
 
 	my $currentX = $inputValues{'x_origin'};
@@ -240,7 +240,6 @@ sub generateHole {
 
 				# needs a finish path
 				print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
-				print "finish path: $cutterPathRadius\n";
 
 			}
 
@@ -284,7 +283,6 @@ sub generateHole {
 
 				# needs a finish path
 				print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
-				print "finish path: $cutterPathRadius\n";
 
 			}
 
