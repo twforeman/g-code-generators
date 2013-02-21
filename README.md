@@ -8,6 +8,8 @@ A series of Perl programs to generate G code for the ShapeOko CNC mill (and othe
 
 The G Code output should be pretty generic and run on most mills.
 
+It does not start or stop the spindle, nor turn any coolant on and off.
+
 I make no guarantees though, so please make sure that the code that is output is
 safe for your machine.
 

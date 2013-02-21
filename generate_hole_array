@@ -4,16 +4,24 @@
 ##
 ## generate_hole_array
 ##
-## part of the g-code-generator scripts
+## part of the g-code-generator scripts collection
 ##
 ## generates an array of bored holes (or a single hole)
 ##
-## version 0.1.0
-##
 ## Tim Foreman - twforeman@gmail.com
 ##
-## most recent version is always available at:
+## The most recent version is always available at:
 ## https://github.com/twforeman/g-code-generators
+##
+## TODO
+##
+## * Add finish path logic
+## * Rework program to pass variables around instead of the current mix of passing and globals
+## * Move step-over logic into generateCircle code
+## * Rework user input to display values and let the user change them before generating g code
+##
+## version 0.1.0 -
+##     Inital release
 ##
 ########################################
 
@@ -182,7 +190,7 @@ sub generateHole {
 	print $FILE "(begining hole boring)\n";
 
 	# do some cutter step over math here
-	my $stepOver = $inputValues{'pass_overlap'} / $inputValues{'end_mill_dia'};
+	my $stepOver = ( $inputValues{'pass_overlap'} / 100 ) * $inputValues{'end_mill_dia'};
 	my $holeRadius = $inputValues{'hole_dia'} / 2;
 	my $cutterRadius = $inputValues{'end_mill_dia'} / 2;
 
@@ -199,48 +207,92 @@ sub generateHole {
 	my $plungeCount = 1;
 
 
-	if (( $holeRadius - $cutterRadius ) <= $stepOver ) {
-		# single pass will clean it up
 
-		## TODO add finish path logic
+	## TODO add finish path logic
 
-		while ( $plungeCount <= $numPlunge ) {
+	while ( $plungeCount <= $numPlunge ) {
 
-			$currentZ = $inputValues{'z_origin'} - ( $inputValues{'plunge_depth'} * $plungeCount );
+		$currentZ = $inputValues{'z_origin'} - ( $inputValues{'plunge_depth'} * $plungeCount );
 
-			# plunge 
-			print $FILE "G01 F" . $inputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
+		# plunge 
+		print $FILE "G01 F" . $inputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
 
+		if (( $holeRadius - $cutterRadius ) <= $stepOver ) {
+
+			# single pass will clean it up
 			print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
-		
-			# move back to the center of the hole
-			printf $FILE "G01 X%.4f Y%.4f\n", $xOrigin, $yOrigin;
 
-			$plungeCount++;
-		}
+		} else {
 
-		if ( $finalPlunge > 0 ) {
+			# need to do multiple passes for stepover
+			my $numStepOver = int( $cutterPathRadius / $stepOver );
+			my $tempRadius = 0;
+			my $stepOverCount = 1;
 
-			# make one more pass to the final depth
+			while ( $stepOverCount <= $numStepOver ) {
 
-			$currentZ = $inputValues{'z_origin'} - $inputValues{'hole_depth'};
+				$tempRadius = $tempRadius + $stepOver;
+				print $FILE generateCircle( $xOrigin, $yOrigin, $tempRadius, $inputValues{'mill_dir'} );
+				$stepOverCount++;
+			}
 
-			# plunge 
-			print $FILE "G01 F" . $inputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
+			if ( $tempRadius < $cutterPathRadius ) {
 
-			print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
-		
-			# move back to the center of the hole
-			printf $FILE "G01 X%.4f Y%.4f\n", $xOrigin, $yOrigin;
+				# needs a finish path
+				print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
+				print "finish path: $cutterPathRadius\n";
+
+			}
 
 		}
 	
+		# move back to the center of the hole
+		printf $FILE "G01 X%.4f Y%.4f\n", $xOrigin, $yOrigin;
 
-	} else {
+		$plungeCount++;
+	}
 
-		# need to do multiple passes for stepover
+	if ( $finalPlunge > 0 ) {
 
-		## TODO add finish path logic
+		# make one more pass to the final depth
+
+		$currentZ = $inputValues{'z_origin'} - $inputValues{'hole_depth'};
+
+		# plunge 
+		print $FILE "G01 F" . $inputValues{'plunge_rate'} . " Z" . $currentZ . "\n";
+
+		if (( $holeRadius - $cutterRadius ) <= $stepOver ) {
+
+			# single pass will clean it up
+			print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
+
+		} else {
+
+			# need to do multiple passes for stepover
+			my $numStepOver = int( $cutterPathRadius / $stepOver );
+			my $tempRadius = 0;
+			my $stepOverCount = 1;
+
+			while ( $stepOverCount <= $numStepOver ) {
+
+				$tempRadius = $tempRadius + $stepOver;
+				print $FILE generateCircle( $xOrigin, $yOrigin, $tempRadius, $inputValues{'mill_dir'} );
+				$stepOverCount++;
+			}
+
+			if ( $tempRadius < $cutterPathRadius ) {
+
+				# needs a finish path
+				print $FILE generateCircle( $xOrigin, $yOrigin, $cutterPathRadius, $inputValues{'mill_dir'} );
+				print "finish path: $cutterPathRadius\n";
+
+			}
+
+		}
+
+	
+		# move back to the center of the hole
+		printf $FILE "G01 X%.4f Y%.4f\n", $xOrigin, $yOrigin;
 
 	}
 
@@ -255,7 +307,7 @@ sub generateCircle {
 	## It is recommended to generate circles using multiple arcs
 	## so we will do four 90 degree arcs
 
-	my ( $xOrigin, $yOrigin, $radius, $direction, $FILE ) = @_;
+	my ( $xOrigin, $yOrigin, $radius, $direction ) = @_;
 
 	my $gcode = "";
 
@@ -282,6 +334,3 @@ readConfig();
 getUserInput();
 sanityCheck();
 calculateGcode();
-
-## TODO
-## more input validation
