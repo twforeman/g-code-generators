@@ -19,6 +19,10 @@
 ## * Rework program to pass variables around instead of the current mix of passing and globals
 ## * Move step-over logic into generateCircle code
 ## * Rework user input to display values and let the user change them before generating g code
+## * add logic to not cut air in the counterbore area when boring the holes
+##
+## version 0.2.0 -
+##     added couterbore option
 ##
 ## version 0.1.0 -
 ##     Inital release
@@ -68,6 +72,11 @@ sub getUserInput() {
 	$inputValues{'hole_depth'} = promptUser("Hole depth ",$userPrefs{'hole_depth'});
 	$inputValues{'plunge_depth'} = promptUser("Plunge depth ",$userPrefs{'plunge_depth'});
 	$inputValues{'plunge_rate'} = promptUser("Plunge rate ",$userPrefs{'plunge_rate'});
+    $inputValues{'cbore'} = lc(promptUser("Counterbore (y/n)", "N"));
+    if ( $inputValues{'cbore'} eq "y" ) {
+        $inputValues{'cbore_dia'} = promptUser("Counterbore diameter ");
+        $inputValues{'cbore_depth'} = promptUser("Counterbore depth ");
+    }
 	print "\n";
 	$inputValues{'x_origin'} = promptUser("X origin ", $userPrefs{'x_origin'});
 	$inputValues{'y_origin'} = promptUser("Y origin ", $userPrefs{'y_origin'});
@@ -131,6 +140,9 @@ sub calculateGcode() {
 	defined( $inputValues{'comment'} ) && print OUTFILE "( $inputValues{'comment'} )\n";
 
 	printf OUTFILE "( Bores %.4f dia holes with %.4f dia end mill )\n", $inputValues{'hole_dia'}, $inputValues{'end_mill_dia'};
+    if ( $inputValues{'cbore'} eq "y" ) {
+        printf OUTFILE "( Counterbore %.4f diameter x %.4f deep )\n", $inputValues{'cbore_dia'}, $inputValues{'cbore_depth'};
+    }
 
 	if ($inputValues{'units'} eq 'i') {
 
@@ -153,7 +165,10 @@ sub calculateGcode() {
 	while ($column <= $inputValues{'x_count'}) {
 		while ($row <= $inputValues{'y_count'}){
 			print OUTFILE "G00 X" . $currentX . " Y" . $currentY . "\n";
-			generateHole($currentX, $currentY, \*OUTFILE);
+            if ( $inputValues{'cbore'} eq "y" ) {
+			    generateHole($currentX, $currentY, $inputValues{'cbore_dia'}, $inputValues{'cbore_depth'}, \*OUTFILE);
+            }
+			generateHole($currentX, $currentY, $inputValues{'hole_dia'}, $inputValues{'hole_depth'}, \*OUTFILE);
 			if ( $direction == 1 ) {
 				$currentY = $currentY + $inputValues{'y_spacing'};
 			} else {
@@ -186,12 +201,11 @@ sub promptUser {
 }
 
 sub generateHole {
-	my ($xOrigin, $yOrigin, $FILE) = @_;
-	print $FILE "(begining hole boring)\n";
+	my ($xOrigin, $yOrigin, $holeDia, $holeDepth, $FILE) = @_;
 
 	# do some cutter step over math here
 	my $stepOver = ( $inputValues{'pass_overlap'} / 100 ) * $inputValues{'end_mill_dia'};
-	my $holeRadius = $inputValues{'hole_dia'} / 2;
+	my $holeRadius = $holeDia / 2;
 	my $cutterRadius = $inputValues{'end_mill_dia'} / 2;
 
 	## TODO add finish path here
@@ -199,10 +213,10 @@ sub generateHole {
 	my $cutterPathRadius = $holeRadius - $cutterRadius;
 
 	my $currentZ = $inputValues{'z_origin'};
-	my $finalZ = $currentZ - $inputValues{'hole_depth'};
+	my $finalZ = $currentZ - $holeDepth;
 
-	my $finalPlunge = fmod( $inputValues{'hole_depth'}, $inputValues{'plunge_depth'} );
-	my $numPlunge = int( $inputValues{'hole_depth'} / $inputValues{'plunge_depth'} );
+	my $finalPlunge = fmod( $holeDepth, $inputValues{'plunge_depth'} );
+	my $numPlunge = int( $holeDepth / $inputValues{'plunge_depth'} );
 
 	my $plungeCount = 1;
 
