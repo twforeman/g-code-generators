@@ -20,6 +20,8 @@
 ## * Move step-over logic into generateCircle code
 ## * Rework user input to display values and let the user change them before generating g code
 ## * add logic to not cut air in the counterbore area when boring the holes
+## * add ability generate and/or save the user config file
+## * add ability to have staggered rows of holes
 ##
 ## version 0.2.0 -
 ##     added couterbore option
@@ -39,17 +41,17 @@ my %inputValues;
 
 sub readConfig() {
 
-	(-f $configFile ) || die "Config file: $configFile not found.\n";
+	( -f $configFile ) || die "Config file: $configFile not found.\n";
 
 	open CONFIG, $configFile;
 
-	while (<CONFIG>) {
+	while ( <CONFIG> ) {
 	    	chomp;                  # no newline
     		s/#.*//;                # no comments
     		s/^\s+//;               # no leading white
     		s/\s+$//;               # no trailing white
     		next unless length;     # anything left?
-    		my ($var, $value) = split(/\s*=\s*/, $_, 2);
+    		my ( $var, $value ) = split( /\s*=\s*/, $_, 2 );
     		$userPrefs{$var} = $value;
 	}
 }
@@ -58,8 +60,8 @@ sub getUserInput() {
 
 	$inputValues{'units'} = "";
 
-	while (($inputValues{'units'} ne "i") && ($inputValues{'units'} ne "m")) {
-		$inputValues{'units'} = lc(promptUser("Units - (i)nches (m)illimeters ",($userPrefs{'units'} eq 'inches' ? "i" : "m")));
+	while ( ( $inputValues{'units'} ne "i" ) && ( $inputValues{'units'} ne "m" ) ) {
+		$inputValues{'units'} = lc( promptUser("Units - (i)nches (m)illimeters ",($userPrefs{'units'} eq 'inches' ? "i" : "m")));
 	}
 
 	$inputValues{'end_mill_dia'} = promptUser("End mill diameter ",$userPrefs{'end_mill_dia'});
@@ -145,13 +147,9 @@ sub calculateGcode() {
     }
 
 	if ($inputValues{'units'} eq 'i') {
-
 		print OUTFILE "G20 ";
-
 	} else {
-
 		print OUTFILE "G21 ";
-
 	}
 
 	print OUTFILE "G90 G40 G17\n";
@@ -164,6 +162,7 @@ sub calculateGcode() {
 
 	while ($column <= $inputValues{'x_count'}) {
 		while ($row <= $inputValues{'y_count'}){
+            # move to the center of the hole
 			print OUTFILE "G00 X" . $currentX . " Y" . $currentY . "\n";
             if ( $inputValues{'cbore'} eq "y" ) {
 			    generateHole($currentX, $currentY, $inputValues{'cbore_dia'}, $inputValues{'cbore_depth'}, \*OUTFILE);
