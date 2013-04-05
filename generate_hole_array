@@ -100,13 +100,14 @@ sub getUserInput() {
 
     if ( $inputValues{'cut_method'} eq "p" ) {
         $inputValues{'plunge_depth'} =
-          promptUser( "Plunge depth ", $userPrefs{'plunge_depth'} );
+          promptUser( "Plunge depth per pass", $userPrefs{'plunge_depth'} );
     } else {
         $inputValues{'plunge_depth'} =
           promptUser( "Cut depth per pass", $userPrefs{'plunge_depth'} );
+    }
     $inputValues{'plunge_rate'} =
       promptUser( "Plunge rate ", $userPrefs{'plunge_rate'} );
-    }
+
     $inputValues{'cbore'} = lc( promptUser( "Counterbore (y/n)", "N" ) );
 
     if ( $inputValues{'cbore'} eq "y" ) {
@@ -210,9 +211,9 @@ sub calculateGcode() {
     }
 
     print OUTFILE "G90 G40 G17\n";
-    printf OUTFILE "G0 X%.4f Y%.4f\n", $inputValues{'x_origin'},
-      $inputValues{'y_origin'};
-    printf OUTFILE "G0 Z%.4f\n", $inputValues{'safety_plane'};
+    #printf OUTFILE "G0 X%.4f Y%.4f\n", $inputValues{'x_origin'},
+    #  $inputValues{'y_origin'};
+    #printf OUTFILE "G0 Z%.4f\n", $inputValues{'safety_plane'};
 
     my $column    = 1;
     my $row       = 1;
@@ -349,14 +350,13 @@ sub generateHole {
 
     # move to the start point and drop to Z origin
     printf $FILE "G0 X%.4f Y%.4f\n",
-      $inputValues{'x_origin'},
-      $inputValues{'y_origin'};
+      $xOrigin, $yOrigin;
 
     printf $FILE "G01 F%.2f Z%.4f\n",
       $inputValues{'plunge_rate'},
       $inputValues{'z_origin'};
 
-    while ( $plungeCount < $numPlunge ) {
+    while ( $plungeCount <= $numPlunge ) {
 
         $startZ = $targetZ;
 
@@ -364,8 +364,7 @@ sub generateHole {
           ( $inputValues{'plunge_depth'} * $plungeCount );
 
         print $FILE generateCircle(
-            $inputValues{'x_origin'},
-            $inputValues{'y_origin'},
+            $xOrigin, $yOrigin,
             $startZ, $targetZ, $cutterPathRadius
         );
 
@@ -378,8 +377,7 @@ sub generateHole {
         $targetZ = $inputValues{'z_origin'} - $inputValues{'hole_depth'};
 
         print $FILE generateCircle(
-            $inputValues{'x_origin'},
-            $inputValues{'y_origin'},
+            $xOrigin, $yOrigin,
             $startZ, $targetZ, $cutterPathRadius
         );
     }
@@ -390,8 +388,7 @@ sub generateHole {
         $targetZ = $inputValues{'z_origin'} - $inputValues{'hole_depth'};
 
         print $FILE generateCircle(
-            $inputValues{'x_origin'},
-            $inputValues{'y_origin'},
+            $xOrigin, $yOrigin,
             $targetZ, $targetZ, $cutterPathRadius
         );
     }
@@ -464,6 +461,11 @@ sub generateCircle {
           ( $yOrigin + $radius ), $targetZ, $radius, 0;
         $gcode = $gcode . sprintf "G02 X%.4f Y%.4f Z%.4f I%.4f J%.4f\n",
           ( $xOrigin + $radius ), $yOrigin, $endZ, 0, ( -$radius );
+    }
+
+    if ( $inputValues{'cut_method'} eq 'p' ) {
+        # move back to the center of the hole for the next plunge
+        $gcode = $gcode . sprintf "G01 X%.4f Y%.4f\n", $xOrigin, $yOrigin;
     }
 
     return $gcode;
