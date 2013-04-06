@@ -254,6 +254,7 @@ sub calculateGcode() {
 
                         generateHole( $currentX, $currentY, $tempRadius,
                             $inputValues{'cbore_depth'}, \*OUTFILE );
+                        $stepOverCount++;
                     }
 
                     if ( $tempRadius < $cutterPathRadius ) {
@@ -291,6 +292,7 @@ sub calculateGcode() {
                     $tempRadius = $tempRadius + $stepOver;
                     generateHole( $currentX, $currentY, $tempRadius,
                         $inputValues{'hole_depth'}, \*OUTFILE );
+                    $stepOverCount++;
                 }
 
                 if ( $tempRadius < $cutterPathRadius ) {
@@ -337,7 +339,7 @@ sub promptUser {
 sub generateHole {
     my ( $xOrigin, $yOrigin, $holeRadius, $holeDepth, $FILE ) = @_;
 
-    my $cutterPathRadius = $holeRadius - ( $inputValues{'end_mill_dia'} / 2 );
+    #my $cutterPathRadius = $holeRadius - ( $inputValues{'end_mill_dia'} / 2 );
 
     my $targetZ = $inputValues{'z_origin'};
     my $finalZ  = $targetZ - $holeDepth;
@@ -365,7 +367,7 @@ sub generateHole {
 
         print $FILE generateCircle(
             $xOrigin, $yOrigin,
-            $startZ, $targetZ, $cutterPathRadius
+            $startZ, $targetZ, $holeRadius
         );
 
         $plungeCount++;
@@ -378,9 +380,8 @@ sub generateHole {
 
         print $FILE generateCircle(
             $xOrigin, $yOrigin,
-            $startZ, $targetZ, $cutterPathRadius
-        );
-    }
+            $startZ, $targetZ, $holeRadius
+        ); }
 
     if ( $inputValues{'cut_method'} eq 's' ) {
 
@@ -389,7 +390,7 @@ sub generateHole {
 
         print $FILE generateCircle(
             $xOrigin, $yOrigin,
-            $targetZ, $targetZ, $cutterPathRadius
+            $targetZ, $targetZ, $holeRadius
         );
     }
 
