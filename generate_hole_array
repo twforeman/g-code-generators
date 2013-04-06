@@ -96,7 +96,7 @@ sub getUserInput() {
       promptUser( "Hole depth ", $userPrefs{'hole_depth'} );
 
     $inputValues{'cut_method'} =
-      lc( promptUser( "Plunge or Spiral cut (p/s) ", "P" ) );
+      lc( promptUser( "Plunge or Spiral cut (p/s) ", $userPrefs{'cut_method'} ) );
 
     if ( $inputValues{'cut_method'} eq "p" ) {
         $inputValues{'plunge_depth'} =
@@ -235,10 +235,10 @@ sub calculateGcode() {
                 my $holeRadius       = $inputValues{'cbore_dia'} / 2;
                 my $cutterPathRadius = $holeRadius - $cutterRadius;
 
-                if ( ( $holeRadius - $cutterRadius ) <= $stepOver ) {
+                if ( $cutterPathRadius <= $stepOver ) {
 
                     # single pass will clean it up
-                    generateHole( $currentX, $currentY, $holeRadius,
+                    generateHole( $currentX, $currentY, $cutterPathRadius,
                         $inputValues{'cbore_depth'}, \*OUTFILE );
 
                 } else {
@@ -260,7 +260,7 @@ sub calculateGcode() {
                     if ( $tempRadius < $cutterPathRadius ) {
 
                         # needs a finish path
-                        generateHole( $currentX, $currentY, $holeRadius,
+                        generateHole( $currentX, $currentY, $cutterPathRadius,
                             $inputValues{'cbore_depth'}, \*OUTFILE );
 
                     }
@@ -272,15 +272,13 @@ sub calculateGcode() {
             my $holeRadius       = $inputValues{'hole_dia'} / 2;
             my $cutterPathRadius = $holeRadius - $cutterRadius;
 
-            if ( ( $holeRadius - $cutterRadius ) <= $stepOver ) {
+            if ( $cutterPathRadius <= $stepOver ) {
 
                 # single pass will clean it up
-                generateHole( $currentX, $currentY, $holeRadius,
+                generateHole( $currentX, $currentY, $cutterPathRadius,
                     $inputValues{'hole_depth'}, \*OUTFILE );
 
             } else {
-
-                my $cutterPathRadius = $holeRadius - $cutterRadius;
 
                 # need to do multiple passes for stepover
                 my $numStepOver   = int( $cutterPathRadius / $stepOver );
@@ -298,7 +296,7 @@ sub calculateGcode() {
                 if ( $tempRadius < $cutterPathRadius ) {
 
                     # needs a finish path
-                    generateHole( $currentX, $currentY, $holeRadius,
+                    generateHole( $currentX, $currentY, $cutterPathRadius,
                         $inputValues{'hole_depth'}, \*OUTFILE );
                 }
 
@@ -376,6 +374,7 @@ sub generateHole {
     if ( $finalPlunge > 0 ) {
 
         # make one more pass to the final depth
+	$startZ = $targetZ;
         $targetZ = $inputValues{'z_origin'} - $inputValues{'hole_depth'};
 
         print $FILE generateCircle(
@@ -457,7 +456,7 @@ sub generateCircle {
         $gcode   = $gcode . sprintf "G02 X%.4f Y%.4f Z%.4f I%.4f J%.4f\n",
           ( $xOrigin - $radius ), $yOrigin, $targetZ, 0, $radius;
         $targetZ = $targetZ - $stepZ;
-        $gcode   = $gcode . sprintf "G02 X%.4f Y%.4f Z%.4f, I%.4f J%.4f\n",
+        $gcode   = $gcode . sprintf "G02 X%.4f Y%.4f Z%.4f I%.4f J%.4f\n",
           $xOrigin,
           ( $yOrigin + $radius ), $targetZ, $radius, 0;
         $gcode = $gcode . sprintf "G02 X%.4f Y%.4f Z%.4f I%.4f J%.4f\n",
