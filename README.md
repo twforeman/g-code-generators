@@ -17,7 +17,8 @@ Included Programs
 -----------------
 
 generate_hole_array - generates the G code to mill a series of holes in an array
-pattern. Includes ability to add a counterbore to the holes.
+pattern. Includes ability to add a counterbore to the holes. Now includes a
+spiral boring method.
 
 License
 -------
