@@ -343,8 +343,14 @@ sub generateHole {
     my $finalZ  = $targetZ - $holeDepth;
     my $startZ;
 
-    my $finalPlunge = fmod( $holeDepth, $inputValues{'plunge_depth'} );
-    my $numPlunge = int( $holeDepth / $inputValues{'plunge_depth'} );
+    my $plungeDepth =  $inputValues{'plunge_depth'};
+
+    if ( $plungeDepth > $holeDepth ) {
+	$plungeDepth = $holeDepth
+    }
+
+    my $finalPlunge = fmod( $holeDepth, $plungeDepth );
+    my $numPlunge = int( $holeDepth / $plungeDepth );
 
     my $plungeCount = 1;
 
@@ -361,7 +367,7 @@ sub generateHole {
         $startZ = $targetZ;
 
         $targetZ = $inputValues{'z_origin'} -
-          ( $inputValues{'plunge_depth'} * $plungeCount );
+          ( $plungeDepth * $plungeCount );
 
         print $FILE generateCircle(
             $xOrigin, $yOrigin,
